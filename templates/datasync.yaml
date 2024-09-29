@@ -1,0 +1,382 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: DataSync template to synchronise encrypted S3 buckets between accounts.
+
+# References:
+#   - https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-role.html
+#   - https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-datasync-locations3.html
+#   - https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-datasync-task.html
+
+Parameters:
+  # Template Parameters
+  TemplateName:
+    Type: String
+    Description: The name of the template.
+    AllowedValues: ['service-datasync']
+    Default: 'service-datasync'
+  TemplateVersion:
+    Type: String
+    Description: The version of the template.
+    AllowedValues: ['1.0.0']
+    Default: '1.0.0'
+
+  # DataSync Source Parameters
+  SourceAccount:
+    Type: String
+    Description: The AWS account ID for the source.
+    AllowedPattern: '^[0-9]{12}^|^$'
+    Default: ''
+  SourceRoleArn:
+    Type: String
+    Description: The ARN of the existing IAM role for the DataSync S3 source. Not required when SourceRoleName supplied.
+    Default: 'arn:aws:iam::012345678910:role/NoRole'   # Dummy value used in Conditions.
+  SourceRoleName:
+    Type: String
+    Description: The name of the IAM role for the DataSync S3 source. Not required when SourceRoleArn supplied.
+    Default: ''
+  SourceBucket:
+    Type: String
+    Description: The name of the S3 bucket for the DataSync source.
+  SourceCmkId:
+    Type: String
+    Description: The ID of the KMS CMK for the DataSync source.
+  SourceSubdirectory: 
+    Type: String
+    Description: The subdirectory within the S3 bucket for the DataSync source. Default is '/'.
+    AllowedPattern: '^[a-zA-Z0-9/_-]*$'
+    Default: '/'
+
+  # DataSync Destination Parameters
+  DestinationAccount:
+    Type: String
+    Description: The AWS account ID for the destination.
+    AllowedPattern: '^[0-9]{12}^|^$'
+    Default: ''
+  DestinationRoleName:
+    Type: String
+    Description: The name of the IAM role for the DataSync S3 destination. Not required when DestinationRoleArn supplied.
+    Default: ''
+  DestinationRoleArn:
+    Type: String
+    Description: The ARN of the existing IAM role for the DataSync S3 destination. Not required when DestinationRoleName supplied.
+    Default: 'arn:aws:iam::012345678910:role/NoRole'   # Dummy value used in Conditions.
+  DestinationBucket:
+    Type: String
+    Description: The name of the S3 bucket for the DataSync destination.
+  DestinationCmkId:
+    Type: String
+    Description: The ID of the KMS CMK for the DataSync destination.
+  DestinationSubdirectory:
+    Type: String
+    Description: The subdirectory within the S3 bucket for the DataSync destination. Default is '/'.
+    AllowedPattern: '^[a-zA-Z0-9/_-]*$'
+    Default: '/'
+  S3StorageClass:
+    Type: String
+    Description: The storage class for the DataSync S3 destination. Default is 'INTELLIGENT_TIERING'.
+    Default: 'INTELLIGENT_TIERING'
+    AllowedValues:
+      - STANDARD
+      - STANDARD_IA
+      - ONEZONE_IA
+      - GLACIER
+      - DEEP_ARCHIVE
+      - INTELLIGENT_TIERING
+      - REDUCED_REDUNDANCY
+
+  # DataSync Task Schedule Parameters
+  ScheduleExpression:
+    Type: String
+    Description: 'Specifies the schedule used to periodically transfer files from a source to a destination location. Default is rate(1 hours).'
+    Default: 'rate(1 hours)'
+  TaskStatus:
+    Type: String
+    Description: 'Specifies whether the Task Schedule is ENABLED or DISABLED. Default is ENABLED.'
+    Default: 'ENABLED'
+
+  # DataSync Task Include/Exclude Parameters
+  IncludePattern:
+    Type: String
+    Description: 'Specifies the pattern for files to include in the transfer. Default is everything.'
+    Default: ''
+  ExcludePattern:
+    Type: String
+    Description: 'Specifies the pattern for files to exclude in the transfer. Default is nothing.'
+    Default: ''
+  
+  # DataSync Task Options Parameters
+  Atime:
+    Type: String
+    Description: 'Specifies whether DataSync best effort attempts to preserve the original Atime attribute on all source files. Default is BEST_EFFORT.'
+    AllowedValues: ['NONE', 'BEST_EFFORT']
+    Default: 'BEST_EFFORT'
+  BytesPerSecond:
+    Type: Number
+    Description: 'Specifies the maximum bytes per second for the task. For example, if you want AWS DataSync to use a maximum of 1 MB, set this value to 1048576 (=1024*1024). Use -1 for unlimited. Default is -1.'
+    Default: -1
+  Gid:
+    Type: String
+    Description: 'Specifies the group ID (GID) of the file owners. Default is INT_VALUE (recommended).'
+    AllowedValues: ['NONE', 'INT_VALUE', 'NAME', 'BOTH']
+    Default: 'INT_VALUE'
+  LogLevel:
+    Type: String
+    Description: 'Specifies the type of logs that DataSync publishes to a Amazon CloudWatch Logs log group. To specify the log group, see CloudWatchLogGroupArn. Default is BASIC.'
+    AllowedValues: ['OFF', 'BASIC', 'TRANSFER']
+    Default: 'TRANSFER'
+  Mtime:
+    Type: String
+    Description: 'Specifies whether DataSync preserves the original Mtime attribute on all source files. This option is required for cases when you need to run the same task more than one time. Default is PRESERVE.'
+    AllowedValues: ['NONE', 'PRESERVE']
+    Default: 'PRESERVE'
+  ObjectTags:
+    Type: String
+    Description: 'Specifies whether you want DataSync to PRESERVE object tags (default behavior) when transferring between object storage systems. Default is PRESERVE.'
+    Default: 'PRESERVE'
+    AllowedValues: ['PRESERVE', 'NONE']
+  OverwriteMode:
+    Type: String
+    Description: 'Specifies whether files at the destination should be overwritten. When set to NEVER, you can protect against overwriting changes made to files or objects in the destination. Default is ALWAYS.'
+    AllowedValues: ['ALWAYS', 'NEVER']
+    Default: 'ALWAYS'
+  PosixPermissions:
+    Type: String
+    Description: 'Specifies whether the POSIX users or groups permissions are preserved for a specific purpose, such as reading, writing, or execution of the file. Default is PRESERVE.'
+    AllowedValues: ['NONE', 'PRESERVE']
+    Default: 'PRESERVE'
+  PreserveDeletedFiles:
+    Type: String
+    Description: 'Specifies whether files in the destination, that no longer exist in the source file system are preserved. Default is PRESERVE.'
+    AllowedValues: ['PRESERVE', 'REMOVE']
+    Default: 'PRESERVE'
+  PreserveDevices:
+    Type: String
+    Description: 'Specifies whether DataSync should preserve the metadata of block and character devices in the source file system, and re-create the files with that device name and metadata on the destination. DataSync does not copy the contents of such devices, only the name and metadata. Default is NONE (recommended).'
+    AllowedValues: ['NONE', 'PRESERVE']
+    Default: 'NONE'
+  SecurityDescriptorCopyFlags:
+    Type: String
+    Description: 'Specifies which components of the SMB security descriptor are copied from source to destination objects. Default is OWNER_DACL.'
+    AllowedValues: ['OWNER_DACL', 'OWNER_DACL_SACL']
+    Default: 'OWNER_DACL'
+  TaskQueueing:
+    Type: String
+    Description: 'Specifies whether your transfer tasks should be put into a queue during certain scenarios when running multiple tasks. Default is ENABLED.'
+    AllowedValues: ['ENABLED', 'DISABLED']
+    Default: 'ENABLED'
+  TransferMode:
+    Type: String
+    Description: 'Specifies the behavior of a transfer task when files with the same name already exist at the destination.'
+    AllowedValues: ['CHANGED', 'ALL']
+    Default: 'CHANGED'
+  Uid:
+    Type: String
+    Description: 'Specifies the user ID (UID) of the file owner. Default is INT_VALUE (recommended).'
+    AllowedValues: ['NONE', 'INT_VALUE', 'NAME', 'BOTH']
+    Default: 'INT_VALUE'
+  VerifyMode:
+    Type: String
+    Description: 'Specifies whether a data integrity verification is performed at the end of a task execution after all data and metadata have been transferred. Default is ONLY_FILES_TRANSFERRED.'
+    AllowedValues: ['POINT_IN_TIME_CONSISTENT', 'ONLY_FILES_TRANSFERRED', 'NONE']
+    Default: 'ONLY_FILES_TRANSFERRED'
+
+Conditions:
+  # 'arn:aws:iam::012345678910:role/NoRole' means no role was supplied for the Parameter.
+  CreateSourceRole: !And
+    - !Equals [!Ref SourceRoleArn, 'arn:aws:iam::012345678910:role/NoRole']
+    - !Not [!Equals [!Ref SourceRoleName, '']]
+    - !Not [!Equals [!Ref SourceAccount, '']]
+    - !Not [!Equals [!Ref SourceBucket, '']]
+  CreateSourceLocation: !And
+    - !Not [!Equals [!Ref SourceAccount, '']]
+    - !Not [!Equals [!Ref SourceBucket, '']]
+    - !Not [!Equals [!Ref SourceCmkId, '']]
+    
+  CreateDestinationRole: !And
+    - !Equals [!Ref DestinationRoleArn, 'arn:aws:iam::012345678910:role/NoRole']
+    - !Not [!Equals [!Ref DestinationRoleName, '']]
+    - !Not [!Equals [!Ref SourceAccount, '']]
+    - !Not [!Equals [!Ref DestinationBucket, '']]
+  CreateDestinationLocation: !And
+    - !Not [!Equals [!Ref DestinationAccount, '']]
+    - !Not [!Equals [!Ref DestinationBucket, '']]
+    - !Not [!Equals [!Ref DestinationCmkId, '']]
+  
+  CreateTask: !And
+    - !Condition CreateSourceLocation
+    - !Condition CreateDestinationLocation
+
+  IncludeFiles: !Not [!Equals [!Ref IncludePattern, '']]
+  ExcludeFiles: !Not [!Equals [!Ref ExcludePattern, '']]
+  
+Resources:
+  # DataSync Source IAM Role and Location
+  SourceRole:
+    Type: 'AWS::IAM::Role'
+    Condition: CreateSourceRole
+    Properties:
+      RoleName: !Ref SourceRoleName
+      Tags:
+        - Key: 'TemplateVersion'
+          Value: !Sub '${TemplateName}/${TemplateVersion}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'datasync.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: !Sub 'DataSync-${SourceAccount}-${SourceBucket}'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:s3:::${SourceBucket}'
+                  - !Sub 'arn:${AWS::Partition}:s3:::${SourceBucket}/*'
+              - Effect: 'Allow'
+                Action:
+                  - 'kms:Decrypt'
+                Resource: !Sub 'arn:${AWS::Partition}:kms:${AWS::Region}:${SourceAccount}:key/${SourceCmkId}'
+  SourceLocation:
+    Type: 'AWS::DataSync::LocationS3'
+    Condition: CreateSourceLocation
+    Properties:
+      S3BucketArn: !Sub 'arn:${AWS::Partition}:s3:::${SourceBucket}'
+      S3Config:
+        BucketAccessRoleArn: !If
+          - CreateSourceRole
+          - !GetAtt SourceRole.Arn
+          - !Ref SourceRoleArn
+      Subdirectory: !Ref SourceSubdirectory
+      Tags:
+        - Key: 'Name'
+          Value: !Join ['-', [!Ref SourceAccount, !Ref SourceBucket]]
+        - Key: 'TemplateVersion'
+          Value: !Sub '${TemplateName}/${TemplateVersion}'
+
+  # DataSync Destination IAM Role and Location
+  DestinationRole:
+    Type: 'AWS::IAM::Role'
+    Condition: CreateDestinationRole
+    Properties:
+      RoleName: !Ref DestinationRoleName
+      Tags:
+        - Key: 'TemplateVersion'
+          Value: !Sub '${TemplateName}/${TemplateVersion}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'datasync.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: !Sub 'DataSync-${DestinationAccount}-${DestinationBucket}'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 's3:PutObject'
+                  - 's3:ListBucket'
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:s3:::${DestinationBucket}'
+                  - !Sub 'arn:${AWS::Partition}:s3:::${DestinationBucket}/*'
+              - Effect: 'Allow'
+                Action:
+                  - 'kms:Encrypt'
+                Resource: !Sub 'arn:${AWS::Partition}:kms:${AWS::Region}:${DestinationAccount}:key/${DestinationCmkId}'
+  DestinationLocation:
+    Type: 'AWS::DataSync::LocationS3'
+    Condition: CreateDestinationLocation
+    Properties:
+      S3BucketArn: !Sub 'arn:${AWS::Partition}:s3:::${DestinationBucket}'
+      S3Config:
+        BucketAccessRoleArn: !If
+          - CreateDestinationRole
+          - !GetAtt DestinationRole.Arn
+          - !Ref DestinationRoleArn
+      Subdirectory: !Ref DestinationSubdirectory
+      S3StorageClass: !Ref S3StorageClass
+      Tags:
+        - Key: 'Name'
+          Value: !Join ['-', [!Ref DestinationAccount, !Ref DestinationBucket]]
+        - Key: 'TemplateVersion'
+          Value: !Sub '${TemplateName}/${TemplateVersion}'
+
+  # DataSync Task
+  DataSyncTask:
+    Type: 'AWS::DataSync::Task'
+    Condition: CreateTask
+    Properties:
+      Name: 'DataSyncTask'
+      SourceLocationArn: !Ref SourceLocation
+      DestinationLocationArn: !Ref DestinationLocation
+      Includes:
+        !If
+          - IncludeFiles
+          - - FilterType: 'SIMPLE_PATTERN'
+              Value: !Ref IncludePattern
+          - !Ref AWS::NoValue
+      Excludes:
+        !If
+          - ExcludeFiles
+          - - FilterType: 'SIMPLE_PATTERN'
+              Value: !Ref ExcludePattern
+          - !Ref AWS::NoValue
+
+      # ManifestConfig:
+      Schedule:
+        ScheduleExpression: !Ref ScheduleExpression
+        Status: !Ref TaskStatus
+      # TaskReportConfig:
+      # CloudWatchLogGroupArn:
+      Options:
+        Atime: !Ref Atime
+        BytesPerSecond: !Ref BytesPerSecond
+        Gid: !Ref Gid
+        LogLevel: !Ref LogLevel
+        Mtime: !Ref Mtime
+        ObjectTags: !Ref ObjectTags
+        OverwriteMode: !Ref OverwriteMode
+        PosixPermissions: !Ref PosixPermissions
+        PreserveDeletedFiles: !Ref PreserveDeletedFiles
+        PreserveDevices: !Ref PreserveDevices
+        SecurityDescriptorCopyFlags: !Ref SecurityDescriptorCopyFlags
+        TaskQueueing: !Ref TaskQueueing
+        TransferMode: !Ref TransferMode
+        Uid: !Ref Uid
+        VerifyMode: !Ref VerifyMode
+      Tags:
+        - Key: 'TemplateVersion'
+          Value: !Sub '${TemplateName}/${TemplateVersion}'
+
+Outputs:
+  SourceRoleArn:
+    Condition: CreateSourceRole
+    Description: The ARN of the DataSync source role.
+    Value: !GetAtt SourceRole.Arn
+  SourceLocationArn:
+    Condition: CreateSourceLocation
+    Description: The ARN of the DataSync source location.
+    Value: !Ref SourceLocation
+
+  DestinationRoleArn:
+    Condition: CreateDestinationRole
+    Description: The ARN of the DataSync destination role.
+    Value: !GetAtt DestinationRole.Arn
+  DestinationLocationArn:
+    Condition: CreateDestinationLocation
+    Description: The ARN of the DataSync destination location.
+    Value: !Ref DestinationLocation
+
+  DataSyncTaskArn:
+    Condition: CreateTask
+    Description: The ARN of the DataSync task.
+    Value: !Ref DataSyncTask
