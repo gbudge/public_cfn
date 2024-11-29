@@ -14,7 +14,14 @@
         "op": "add",
         "path": "/required",
         "value": [
-          "Tags"
+          {
+            "key": "fruit",
+            "value": "required"
+          },
+          {
+            "key": "veggie",
+            "value": "required"
+          }
         ]
       }
     ],
