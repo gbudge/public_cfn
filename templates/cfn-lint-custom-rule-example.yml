@@ -1,7 +1,14 @@
+---
 AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  LatestAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-minimal-kernel-default-x86_64'
+
 Resources:
-  myInstance:
-    Type: AWS::EC2::Instance
+  Instance:
+    Type: 'AWS::EC2::Instance'
     Properties:
-      InstanceType: m4.16xlarge
-      ImageId: ami-asdfef
+      InstanceType: 'm4.16xlarge'
+      ImageId: !Ref LatestAmiId
