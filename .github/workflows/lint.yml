@@ -19,4 +19,4 @@ jobs:
 
       - name: Lint all template files
         run: |
-          cfn-lint --info --debug --template templates/*.yml
+          cfn-lint
