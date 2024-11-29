@@ -1,0 +1,7 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Resources:
+  myInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: m4.16xlarge
+      ImageId: ami-asdfef
