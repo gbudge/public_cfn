@@ -9,5 +9,15 @@
         ]
       }
     ]
+  },
+    "AWS::EC2::Instance": [
+      {
+        "op": "add",
+        "path": "/required",
+        "value": [
+          "Tags"
+        ]
+      }
+    ]
   }
 }
