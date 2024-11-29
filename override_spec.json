@@ -8,9 +8,26 @@
           "Tags"
         ]
       }
-    ]
-  },
+    ],
     "AWS::EC2::Instance": [
+      {
+        "op": "add",
+        "path": "/required",
+        "value": [
+          "Tags"
+        ]
+      }
+    ],
+    "AWS::RDS::DBInstance": [
+      {
+        "op": "add",
+        "path": "/required",
+        "value": [
+          "Tags"
+        ]
+      }
+    ],
+    "AWS::Lambda::Function": [
       {
         "op": "add",
         "path": "/required",
