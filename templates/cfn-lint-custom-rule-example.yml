@@ -10,5 +10,6 @@ Resources:
   Instance:
     Type: 'AWS::EC2::Instance'
     Properties:
-      InstanceType: 'm4.16xlarge'
+      # InstanceType: 'm4.16xlarg'
+      InstanceType: 't2.micro'
       ImageId: !Ref LatestAmiId
