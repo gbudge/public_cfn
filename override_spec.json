@@ -1,14 +1,13 @@
 {
-  "Patches": [
-    {
-      "Target": "AWS::EC2::Instance",
-      "Operations": [
-        {
-          "op": "add",
-          "path": "/Properties/Tags/Items/Properties/Key/enum",
-          "value": ["fruit", "veggies"]
-        }
-      ]
-    }
-  ]
+  "Patches": {
+    "AWS::S3::Bucket": [
+      {
+        "op": "add",
+        "path": "/required",
+        "value": [
+          "Tags"
+        ]
+      }
+    ]
+  }
 }
