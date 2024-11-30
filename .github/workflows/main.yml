@@ -10,7 +10,7 @@ on:
 
 jobs:
   validate-and-build:
-    uses: ./.github/workflows/templates/validate-and-build.yml
+    uses: ./.github/workflows/validate-and-build.yml
     with:
       # template_path: 'path/to/template.yml'
       nuget_file: 'build.nuspec'
