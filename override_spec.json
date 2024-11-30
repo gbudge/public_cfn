@@ -3,7 +3,7 @@
     "AWS::EC2::Instance": [
       {
         "op": "add",
-        "path": "required/Properties/Tags/Items/Properties/Key/enum",
+        "path": "/required/Properties/Tags/Items/Properties/Key/enum",
         "value": ["fruit", "veggies"]
       }
     ]
