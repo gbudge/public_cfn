@@ -1,0 +1,77 @@
+name: CloudFormation Scan and NuGet Package
+
+on:
+  workflow_call:
+    inputs:
+      # template_path:
+      #   description: 'Path to the CloudFormation template(s).'
+      #   required: true
+      #   type: string
+      nuget_file:
+        description: 'Path to the .nuspec file.'
+        required: true
+        type: string
+        default: 'build.nuspec'
+      # artifactory_url:
+      #   description: 'Artifactory URL to upload the package.'
+      #   required: true
+      #   type: string
+      # artifactory_api_key:
+      #   description: 'Artifactory API key.'
+      #   required: true
+      #   type: string
+
+jobs:
+  validate-and-package:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout code
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # Install dependencies
+      - name: Setup cfn-lint action
+        uses: scottbrenner/cfn-lint-action@v2
+
+      # - name: Install Dependencies
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y ruby bundler
+      #     gem install cfn-nag
+      #     pip install cfn-lint
+      #     curl -sSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o awscliv2.zip
+      #     unzip awscliv2.zip
+      #     sudo ./aws/install
+
+      - name: Print cfn-lint version
+        run: |
+          cfn-lint --version
+
+      - name: Lint all template files
+        run: |
+          cfn-lint
+
+      # cfn-nag validation
+      # - name: Run cfn-nag
+      #   run: cfn-nag ${{ inputs.template_path }}
+
+      # AWS CLI CloudFormation validation
+      # - name: Validate using AWS CLI
+      #   run: aws cloudformation validate-template --template-body file://${{ inputs.template_path }}
+
+      # Create NuGet Package
+      # - name: Create NuGet Package
+      #   run: |
+      #     mkdir -p build
+      #     nuget pack ${{ inputs.nuget_file }} -OutputDirectory build
+
+      # Upload to Artifactory using API Key
+      # - name: Upload to Artifactory
+      #   env:
+      #     ARTIFACTORY_API_KEY: ${{ inputs.artifactory_api_key }}
+      #   run: |
+      #     curl -u$ARTIFACTORY_API_KEY: \
+      #       -T build/*.nupkg \
+      #       ${{ inputs.artifactory_url }}
+      # 

@@ -1,0 +1,36 @@
+name: Lint CloudFormation Templates
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+      - default
+
+jobs:
+  validate-and-build:
+    uses: ./.github/workflows/templates/validate-and-build.yml
+    with:
+      # template_path: 'path/to/template.yml'
+      nuget_file: 'build.nuspec'
+      # artifactory_url: 'https://example.jfrog.io/artifactory/api/nuget/repo-name'
+      # artifactory_api_key: ${{ secrets.ARTIFACTORY_API_KEY }}
+
+  # cloudformation-linter:
+  #   runs-on: ubuntu-latest
+
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+
+  #     - name: Setup cfn-lint action
+  #       uses: scottbrenner/cfn-lint-action@v2
+
+  #     - name: Print cfn-lint version
+  #       run: |
+  #         cfn-lint --version
+
+  #     - name: Lint all template files
+  #       run: |
+  #         cfn-lint
