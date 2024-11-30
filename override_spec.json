@@ -14,14 +14,8 @@
         "op": "add",
         "path": "/required",
         "value": [
-          {
-            "key": "fruit",
-            "value": "required"
-          },
-          {
-            "key": "veggie",
-            "value": "required"
-          }
+          "fruit",
+          "veggie"
         ]
       }
     ],
