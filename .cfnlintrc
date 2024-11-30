@@ -1,6 +1,6 @@
 templates:
-  - templates/**/*.yaml
-  - templates/**/*.yml
+  - files/**/*.yaml
+  - files/**/*.yml
 include_checks:
   - I
 custom_rules: custom_rules.txt

@@ -13,3 +13,8 @@ Resources:
       # InstanceType: 'm4.16xlarg'
       InstanceType: 't2.micro'
       ImageId: !Ref LatestAmiId
+      Tags:
+        - Key: 'fruit'
+          Value: 'ExampleInstance'
+        - Key: 'veggies'
+          Value: 'ExampleInstance'
