@@ -11,12 +11,14 @@
     ],
     "AWS::EC2::Instance": [
       {
-        "op": "add",
-        "path": "/required",
-        "value": [
-          "fruit",
-          "veggie"
-        ]
+      "op": "add",
+      "path": "/properties/Tags/items/required",
+      "value": ["Key"]
+      },
+      {
+      "op": "add",
+      "path": "/properties/Tags/items/properties/Key/enum",
+      "value": ["fruit", "veggies"]
       }
     ],
     "AWS::RDS::DBInstance": [
