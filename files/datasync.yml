@@ -1,0 +1,188 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for AWS DataSync between encrypted S3 buckets across different accounts with support for manifests, filters, and reporting.'
+
+Parameters:
+  SourceAccountId:
+    Type: String
+    Description: The AWS account ID where the source S3 bucket resides.
+
+  DestinationAccountId:
+    Type: String
+    Description: The AWS account ID where the destination S3 bucket resides.
+
+  SourceBucketName:
+    Type: String
+    Description: Name of the source S3 bucket.
+
+  DestinationBucketName:
+    Type: String
+    Description: Name of the destination S3 bucket.
+
+  SourceBucketRegion:
+    Type: String
+    Description: Region where the source S3 bucket is located.
+    Default: 'us-east-1'
+
+  DestinationBucketRegion:
+    Type: String
+    Description: Region where the destination S3 bucket is located.
+    Default: 'us-east-1'
+
+  TaskName:
+    Type: String
+    Description: Name for the DataSync Task.
+    Default: 'CrossAccountS3Sync'
+
+  LogGroupName:
+    Type: String
+    Description: Name for the CloudWatch log group for DataSync task logs.
+    Default: 'DataSyncLogs'
+
+  ManifestBucket:
+    Type: String
+    Description: S3 bucket for manifest file if using manifest mode.
+
+  ManifestKey:
+    Type: String
+    Description: Key of the manifest file in the manifest bucket.
+
+  SourceBucketKMSKeyArn:
+    Type: String
+    Description: ARN of the KMS key for the source S3 bucket.
+
+  DestinationBucketKMSKeyArn:
+    Type: String
+    Description: ARN of the KMS key for the destination S3 bucket.
+
+  ManifestBucketKMSKeyArn:
+    Type: String
+    Description: ARN of the KMS key for the manifest S3 bucket.
+
+  ReportBucketKMSKeyArn:
+    Type: String
+    Description: ARN of the KMS key for the report S3 bucket.
+
+Resources:
+  # IAM Role for DataSync in Source Account
+  SourceBucketAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: datasync.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSDataSyncFullAccess
+      Policies:
+        - PolicyName: AllowS3AndKMSAccessForSource
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:Get*'
+                  - 's3:List*'
+                  - 'kms:Decrypt'
+                Resource:
+                  - !Sub 'arn:aws:s3:::${SourceBucketName}'
+                  - !Sub 'arn:aws:s3:::${SourceBucketName}/*'
+                  - !Ref SourceBucketKMSKeyArn
+
+  # IAM Role for DataSync in Destination Account
+  DestinationBucketAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: datasync.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSDataSyncFullAccess
+      Policies:
+        - PolicyName: AllowS3AndKMSAccessForDestination
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:Put*'
+                  - 's3:Get*'
+                  - 's3:List*'
+                  - 'kms:Encrypt'
+                  - 'kms:Decrypt'
+                  - 'kms:GenerateDataKey*'
+                Resource:
+                  - !Sub 'arn:aws:s3:::${DestinationBucketName}'
+                  - !Sub 'arn:aws:s3:::${DestinationBucketName}/*'
+                  - !Ref DestinationBucketKMSKeyArn
+                  - !Ref ManifestBucketKMSKeyArn
+                  - !Ref ReportBucketKMSKeyArn
+
+  # CloudWatch Logs Group for Task
+  DataSyncLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Ref LogGroupName
+      RetentionInDays: 30
+
+  # Create Source S3 Location
+  SourceS3Location:
+    Type: AWS::DataSync::LocationS3
+    Properties:
+      S3BucketArn: !Sub 'arn:aws:s3:::${SourceBucketName}'
+      S3Config:
+        BucketAccessRoleArn: !GetAtt SourceBucketAccessRole.Arn
+        S3StorageClass: STANDARD
+        SseKmsKeyId: !Ref SourceBucketKMSKeyArn
+
+  # Create Destination S3 Location
+  DestinationS3Location:
+    Type: AWS::DataSync::LocationS3
+    Properties:
+      S3BucketArn: !Sub 'arn:aws:s3:::${DestinationBucketName}'
+      S3Config:
+        BucketAccessRoleArn: !GetAtt DestinationBucketAccessRole.Arn
+        S3StorageClass: STANDARD
+        SseKmsKeyId: !Ref DestinationBucketKMSKeyArn
+
+  # DataSync Task
+  DataSyncTask:
+    Type: AWS::DataSync::Task
+    Properties:
+      Name: !Ref TaskName
+      SourceLocationArn: !Ref SourceS3Location
+      DestinationLocationArn: !Ref DestinationS3Location
+      CloudWatchLogGroupArn: !GetAtt DataSyncLogs.Arn
+      ManifestConfig:
+        Action: "TRANSFER"
+        BucketArn: !Sub 'arn:aws:s3:::${ManifestBucket}'
+        ObjectKey: !Ref ManifestKey
+        SseKmsKeyId: !Ref ManifestBucketKMSKeyArn
+      Includes:
+        - FilterType: "SIMPLE_PATTERN"
+          Value: "**"
+      TaskReportConfig:
+        Destination:
+          BucketAccessRoleArn: !GetAtt DestinationBucketAccessRole.Arn
+          S3BucketArn: !Sub 'arn:aws:s3:::${DestinationBucketName}'
+          Subdirectory: "reports/"
+          SseKmsKeyId: !Ref ReportBucketKMSKeyArn
+        OutputType: "SUMMARY_ONLY"
+        ReportLevel: "ERRORS_ONLY"
+
+Outputs:
+  TaskArn:
+    Description: "ARN of the DataSync Task"
+    Value: !Ref DataSyncTask
+  SourceLocationArn:
+    Description: "ARN of the Source S3 Location"
+    Value: !Ref SourceS3Location
+  DestinationLocationArn:
+    Description: "ARN of the Destination S3 Location"
+    Value: !Ref DestinationS3Location
